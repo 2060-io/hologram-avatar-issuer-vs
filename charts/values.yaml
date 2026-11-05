@@ -1,0 +1,73 @@
+global:
+  domain: demos.dev.hologram.zone
+
+# Name of the chatbot StatefulSet and Service. The VS Agent posts its events to
+# http://<name>:<chatbot.port>/events.
+name: avatar-issuer
+replicas: 1
+
+image:
+  repository: io2060/avatar-issuer-chatbot
+  # Defaults to the chart version, which cd.yml sets to the release version.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+chatbot:
+  port: 4000
+  # Admin API of the VS Agent (the client appends /v2).
+  vsAgentAdminUrl: http://avatar-issuer-vsa:3000
+  # VTJSC of the Avatar Credential schema, as the Ecosystem controller publishes it,
+  # for example https://corp.2060.io/vt/schemas-<schemaId>-jsc.json. Required.
+  jsonSchemaCredentialId: ""
+  serviceName: Hologram Avatar
+  logLevel: info
+  # Accounts and avatars. The default keeps SQLite on the StatefulSet volume.
+  databaseUrl: sqlite:./data/sessions.db
+  # Object store of the image previews (MinIO API). The chatbot creates the bucket.
+  objectStore:
+    endpoint: ""
+    port: 9000
+    useSSL: false
+    bucket: avatar-previews
+    # Public base URL of the object store, used in the presigned preview URLs.
+    publicUrl: ""
+    # Secret holding the access key and the secret key.
+    existingSecret: ""
+    accessKeyKey: ACCESS_KEY
+    secretKeyKey: SECRET_KEY
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  storage:
+    size: 1Gi
+    storageClassName: ""
+
+# The VS Agent of the service. Every value of the vs-agent chart can be set here.
+vs-agent-chart:
+  enabled: true
+  name: avatar-issuer-vsa
+  image:
+    repository: veranalabs/vs-agent
+    tag: v2.0.0-dev.105
+  eventsWebhookUrl: http://avatar-issuer:4000/events
+  adminApiAuthMode: internal
+  # The chatbot calls the Admin API from its own pod.
+  adminApiTrustedNetworks: "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+  veranaCorporationId: ""
+  veranaRpcEndpointUrl: ""
+  veranaIndexerBaseUrl: ""
+  veranaChainId: ""
+  agentMode: standalone
+  trustedEcsEcosystemDids: ""
+  delegatedParentVsDid: ""
+  ingress:
+    host: "avatar.{{ .Values.global.domain }}"
+    tlsSecret: "public.avatar.{{ .Values.global.domain }}-cert"
+  database:
+    enabled: false
+  extraEnv: []
