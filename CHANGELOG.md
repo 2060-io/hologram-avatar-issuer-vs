@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/2060-io/hologram-avatar-issuer-vs/compare/v1.0.1...v1.1.0) (2026-11-05)
+
+
+### Features
+
+* **chart:** Helm chart for the avatar issuer and its VS Agent ([c808403](https://github.com/2060-io/hologram-avatar-issuer-vs/commit/c8084031a838f818ec5786f6136b23f6dff8903a))
+* **chart:** Helm chart for the avatar issuer and its VS Agent ([8d90c16](https://github.com/2060-io/hologram-avatar-issuer-vs/commit/8d90c16befc023af894a0c8670fe714ead36401b))
+
 ## [1.0.1](https://github.com/2060-io/hologram-avatar-issuer-vs/compare/v1.0.0...v1.0.1) (2026-11-05)
 
 
