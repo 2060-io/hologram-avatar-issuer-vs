@@ -52,7 +52,7 @@ spec:
             - name: DATABASE_URL
               value: {{ .Values.chatbot.databaseUrl | quote }}
             - name: MINIO_ENDPOINT
-              value: {{ required "chatbot.objectStore.endpoint is required" .Values.chatbot.objectStore.endpoint | quote }}
+              value: {{ required "chatbot.objectStore.endpoint is required" (tpl .Values.chatbot.objectStore.endpoint .) | quote }}
             - name: MINIO_PORT
               value: {{ .Values.chatbot.objectStore.port | quote }}
             - name: MINIO_USE_SSL
@@ -61,19 +61,17 @@ spec:
               value: {{ .Values.chatbot.objectStore.bucket | quote }}
             - name: MINIO_PUBLIC_URL
               value: {{ required "chatbot.objectStore.publicUrl is required" (tpl .Values.chatbot.objectStore.publicUrl .) | quote }}
-            {{- with .Values.chatbot.objectStore }}
-            {{- if .existingSecret }}
+            {{- if or .Values.objectStore.enabled .Values.chatbot.objectStore.existingSecret }}
             - name: MINIO_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .existingSecret }}
-                  key: {{ .accessKeyKey }}
+                  name: {{ include "avatar.s3Secret" . }}
+                  key: {{ .Values.chatbot.objectStore.accessKeyKey }}
             - name: MINIO_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .existingSecret }}
-                  key: {{ .secretKeyKey }}
-            {{- end }}
+                  name: {{ include "avatar.s3Secret" . }}
+                  key: {{ .Values.chatbot.objectStore.secretKeyKey }}
             {{- end }}
             {{- with .Values.chatbot.extraEnv }}
             {{- toYaml . | nindent 12 }}

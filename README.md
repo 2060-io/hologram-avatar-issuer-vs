@@ -83,14 +83,17 @@ docker run -p 4000:4000 \
 
 ## Helm chart
 
-`charts/` deploys the chatbot (StatefulSet with its SQLite data on a volume, and the Service the VS Agent posts its events to) and, as a dependency, its VS Agent (`veranalabs/vs-agent-chart` `v2.0.0-dev.105`). The chart is published at the release version as `oci://registry-1.docker.io/io2060/hologram-avatar-issuer-vs-chart`; its default image tag is that version.
+`charts/` deploys the chatbot (StatefulSet with its SQLite data on a volume, and the Service the VS Agent posts its events to), its own object store for the image previews (SeaweedFS `chrislusf/seaweedfs` with the S3 API, its volume, its keys and a public route; MinIO no longer publishes public images) and, as a dependency, its VS Agent (`veranalabs/vs-agent-chart` `v2.0.0-dev.105`). The chart is published at the release version as `oci://registry-1.docker.io/io2060/hologram-avatar-issuer-vs-chart`; its default image tag is that version.
 
 | Value | Description |
 |---|---|
 | `chatbot.jsonSchemaCredentialId` | Required. VTJSC of the Avatar Credential schema |
-| `chatbot.objectStore.endpoint`, `.port`, `.useSSL`, `.bucket` | Object store of the image previews (MinIO API) |
-| `chatbot.objectStore.publicUrl` | Required. Public base URL used in the presigned preview URLs |
-| `chatbot.objectStore.existingSecret`, `.accessKeyKey`, `.secretKeyKey` | Secret holding the object store keys |
+| `objectStore.enabled` | Deploy the object store of the chart, default `true` |
+| `objectStore.ingress.host` | Public host of the object store, default `avatar-media.<global.domain>`: the wallet downloads the previews from it |
+| `objectStore.storage.size`, `.resources` | Volume and resources of the object store |
+| `chatbot.objectStore.endpoint`, `.port`, `.useSSL`, `.bucket` | S3 client of the chatbot; the defaults point to the object store of the chart |
+| `chatbot.objectStore.publicUrl` | Public base URL used in the presigned preview URLs, default `https://<objectStore.ingress.host>` |
+| `chatbot.objectStore.existingSecret`, `.accessKeyKey`, `.secretKeyKey` | Secret holding the S3 keys. Empty (default): the chart generates them on the first install in the Secret `<objectStore.name>-keys` and keeps them |
 | `chatbot.vsAgentAdminUrl` | Admin API of the VS Agent, default `http://avatar-issuer-vsa:3000` |
 | `vs-agent-chart.*` | Any value of the vs-agent chart: `veranaCorporationId`, the Verana network, `agentMode`, `delegatedParentVsDid`, `ingress.host`, `extraEnv` (`VERANA_ACCOUNT_MNEMONIC`, `ECS_CLAIMS_SERVICE_*`) |
 
