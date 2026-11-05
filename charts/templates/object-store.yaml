@@ -1,0 +1,161 @@
+{{- if .Values.objectStore.enabled }}
+{{- $secretName := include "avatar.s3Secret" . }}
+{{- if not .Values.chatbot.objectStore.existingSecret }}
+# The S3 keys of the object store, generated on the first install and then
+# kept: an upgrade reads them back, and an uninstall leaves them.
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+type: Opaque
+data:
+  {{- if $existing }}
+  {{ .Values.chatbot.objectStore.accessKeyKey }}: {{ index $existing.data .Values.chatbot.objectStore.accessKeyKey }}
+  {{ .Values.chatbot.objectStore.secretKeyKey }}: {{ index $existing.data .Values.chatbot.objectStore.secretKeyKey }}
+  {{- else }}
+  {{ .Values.chatbot.objectStore.accessKeyKey }}: {{ randAlphaNum 20 | b64enc }}
+  {{ .Values.chatbot.objectStore.secretKeyKey }}: {{ randAlphaNum 40 | b64enc }}
+  {{- end }}
+---
+{{- end }}
+# Object store of the avatar previews: SeaweedFS in one process (master, volume,
+# filer and S3 gateway). The chatbot creates the bucket.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.objectStore.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.objectStore.name }}
+spec:
+  selector:
+    app: {{ .Values.objectStore.name }}
+  ports:
+    - name: s3
+      port: {{ .Values.objectStore.s3Port }}
+      targetPort: {{ .Values.objectStore.s3Port }}
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.objectStore.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.objectStore.name }}
+spec:
+  serviceName: {{ .Values.objectStore.name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.objectStore.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.objectStore.name }}
+    spec:
+      initContainers:
+        # Writes the S3 identity file from the Secret, so the keys never land in a ConfigMap.
+        - name: s3-config
+          image: {{ .Values.objectStore.image }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              printf '{"identities":[{"name":"avatar-issuer","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","Write","List","Tagging"]}]}'
+              "$ACCESS_KEY" "$SECRET_KEY" > /etc/seaweedfs/s3.json
+          env:
+            - name: ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: {{ .Values.chatbot.objectStore.accessKeyKey }}
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: {{ .Values.chatbot.objectStore.secretKeyKey }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/seaweedfs
+      containers:
+        - name: seaweedfs
+          image: {{ .Values.objectStore.image }}
+          args:
+            - server
+            - -dir=/data
+            - -master.volumeSizeLimitMB={{ .Values.objectStore.volumeSizeLimitMB }}
+            - -s3
+            - -s3.port={{ .Values.objectStore.s3Port }}
+            - -s3.config=/etc/seaweedfs/s3.json
+          ports:
+            - name: s3
+              containerPort: {{ .Values.objectStore.s3Port }}
+          readinessProbe:
+            tcpSocket:
+              port: s3
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: s3
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.objectStore.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /etc/seaweedfs
+              readOnly: true
+      volumes:
+        - name: config
+          emptyDir:
+            medium: Memory
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.objectStore.storage.storageClassName }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.objectStore.storage.size }}
+{{- if .Values.objectStore.ingress.enabled }}
+---
+# Public route of the object store: the wallet downloads the avatar preview
+# from the presigned URL, which is signed for this host.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.objectStore.name }}
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.objectStore.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.objectStore.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  tls:
+    - hosts:
+        - {{ tpl .Values.objectStore.ingress.host . }}
+      secretName: {{ tpl .Values.objectStore.ingress.tlsSecret . }}
+  rules:
+    - host: {{ tpl .Values.objectStore.ingress.host . }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.objectStore.name }}
+                port:
+                  number: {{ .Values.objectStore.s3Port }}
+{{- end }}
+{{- end }}

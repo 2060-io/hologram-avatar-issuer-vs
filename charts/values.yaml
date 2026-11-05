@@ -23,15 +23,18 @@ chatbot:
   logLevel: info
   # Accounts and avatars. The default keeps SQLite on the StatefulSet volume.
   databaseUrl: sqlite:./data/sessions.db
-  # Object store of the image previews (MinIO API). The chatbot creates the bucket.
+  # S3 client of the image previews. The chatbot creates the bucket. The
+  # defaults use the object store of this chart (objectStore below); set them
+  # to use another S3 service and disable objectStore.
   objectStore:
-    endpoint: ""
-    port: 9000
+    endpoint: "{{ .Values.objectStore.name }}"
+    port: 8333
     useSSL: false
     bucket: avatar-previews
     # Public base URL of the object store, used in the presigned preview URLs.
-    publicUrl: ""
-    # Secret holding the access key and the secret key.
+    publicUrl: "https://{{ tpl .Values.objectStore.ingress.host . }}"
+    # Secret holding the access key and the secret key. Empty: the chart
+    # generates the keys on the first install (Secret <objectStore.name>-keys).
     existingSecret: ""
     accessKeyKey: ACCESS_KEY
     secretKeyKey: SECRET_KEY
@@ -46,6 +49,35 @@ chatbot:
   storage:
     size: 1Gi
     storageClassName: ""
+
+# Object store of the image previews: SeaweedFS (S3 API) with its own volume
+# and its own keys. MinIO no longer publishes public images.
+objectStore:
+  enabled: true
+  name: avatar-issuer-s3
+  image: chrislusf/seaweedfs:3.99
+  s3Port: 8333
+  # Size of a volume file; small keeps memory and preallocation low.
+  volumeSizeLimitMB: 64
+  # Previews expire after 24 hours (bucket lifecycle rule set by the chatbot).
+  storage:
+    size: 2Gi
+    storageClassName: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+  # The wallet downloads the previews from this host.
+  ingress:
+    enabled: true
+    host: "avatar-media.{{ .Values.global.domain }}"
+    tlsSecret: "public.avatar-media.{{ .Values.global.domain }}-cert"
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
 
 # The VS Agent of the service. Every value of the vs-agent chart can be set here.
 vs-agent-chart:

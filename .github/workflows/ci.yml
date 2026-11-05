@@ -47,7 +47,6 @@ jobs:
       - name: Lint and render
         run: |
           helm dependency update charts
-          VALUES="--set chatbot.jsonSchemaCredentialId=https://ecosystem.example/vt/schemas-1-jsc.json \
-                  --set chatbot.objectStore.endpoint=minio --set chatbot.objectStore.publicUrl=https://s3.example"
+          VALUES="--set chatbot.jsonSchemaCredentialId=https://ecosystem.example/vt/schemas-1-jsc.json"
           helm lint charts $VALUES
           helm template avatar charts $VALUES > /dev/null
