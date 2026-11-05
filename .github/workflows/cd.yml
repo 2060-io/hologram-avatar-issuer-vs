@@ -1,9 +1,10 @@
 name: Continuous Delivery
 
 # Versions the repository with Release Please (stable releases) and semantic-release
-# (dev prereleases on main), then builds and publishes io2060/avatar-issuer-chatbot.
-# This repository publishes the image only; the demo is deployed from
-# 2060-io/hologram-demos-deploy, which pins the published tags.
+# (dev prereleases on main), then builds and publishes the image
+# io2060/avatar-issuer-chatbot and the Helm chart io2060/hologram-avatar-issuer-vs-chart,
+# both at the release version. The demo is deployed from 2060-io/hologram-demos-deploy,
+# which pins the published chart.
 #
 # Tags: stable releases get vX.Y.Z, vX.Y and vX; dev prereleases get vX.Y.Z-dev.N plus
 # vX.Y.Z-dev, vX.Y-dev, vX-dev and dev.
@@ -72,3 +73,22 @@ jobs:
           done
           echo "### Published" >> "$GITHUB_STEP_SUMMARY"
           for tag in $TAGS; do echo "- \`$tag\`" >> "$GITHUB_STEP_SUMMARY"; done
+
+      - name: Set up Helm
+        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78 # v3.5
+
+      # The chart has the version of the release, and its default image tag is that version.
+      - name: Package and push the Helm chart
+        env:
+          DH_USERNAME: ${{ secrets.DOCKER_HUB_LOGIN }}
+          DH_TOKEN: ${{ secrets.DOCKER_HUB_PWD }}
+        run: |
+          set -euo pipefail
+          VERSION="v${RELEASE_VERSION#v}"
+          echo "$DH_TOKEN" | helm registry login -u "$DH_USERNAME" --password-stdin registry-1.docker.io
+          sed -i "s/^version:.*/version: $VERSION/; s/^appVersion:.*/appVersion: \"${VERSION#v}\"/" charts/Chart.yaml
+          CHART_NAME=$(awk '/^name:/ {print $2}' charts/Chart.yaml)
+          helm dependency update charts
+          helm package charts -d dist-chart
+          helm push "dist-chart/$CHART_NAME-$VERSION.tgz" oci://registry-1.docker.io/io2060
+          echo "- chart \`oci://registry-1.docker.io/io2060/$CHART_NAME:$VERSION\`" >> "$GITHUB_STEP_SUMMARY"

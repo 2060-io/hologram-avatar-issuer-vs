@@ -81,8 +81,21 @@ docker run -p 4000:4000 \
   avatar-issuer-chatbot
 ```
 
+## Helm chart
+
+`charts/` deploys the chatbot (StatefulSet with its SQLite data on a volume, and the Service the VS Agent posts its events to) and, as a dependency, its VS Agent (`veranalabs/vs-agent-chart` `v2.0.0-dev.105`). The chart is published at the release version as `oci://registry-1.docker.io/io2060/hologram-avatar-issuer-vs-chart`; its default image tag is that version.
+
+| Value | Description |
+|---|---|
+| `chatbot.jsonSchemaCredentialId` | Required. VTJSC of the Avatar Credential schema |
+| `chatbot.objectStore.endpoint`, `.port`, `.useSSL`, `.bucket` | Object store of the image previews (MinIO API) |
+| `chatbot.objectStore.publicUrl` | Required. Public base URL used in the presigned preview URLs |
+| `chatbot.objectStore.existingSecret`, `.accessKeyKey`, `.secretKeyKey` | Secret holding the object store keys |
+| `chatbot.vsAgentAdminUrl` | Admin API of the VS Agent, default `http://avatar-issuer-vsa:3000` |
+| `vs-agent-chart.*` | Any value of the vs-agent chart: `veranaCorporationId`, the Verana network, `agentMode`, `delegatedParentVsDid`, `ingress.host`, `extraEnv` (`VERANA_ACCOUNT_MNEMONIC`, `ECS_CLAIMS_SERVICE_*`) |
+
 ## Releases and images
 
-`cd.yml` versions the repository with Release Please on every push to `main`: merging the release pull request publishes a stable release (`vX.Y.Z`), and every other releasable commit (`feat`, `fix`, ...) a dev prerelease (`vX.Y.Z-dev.N`). Each release pushes [`io2060/avatar-issuer-chatbot`](https://hub.docker.com/r/io2060/avatar-issuer-chatbot): stable releases as `vX.Y.Z`, `vX.Y` and `vX`, dev prereleases as `vX.Y.Z-dev.N`, `vX.Y.Z-dev`, `vX.Y-dev`, `vX-dev` and `dev`. Deployments pin the full version tag.
+`cd.yml` versions the repository with Release Please on every push to `main`: merging the release pull request publishes a stable release (`vX.Y.Z`), and every other releasable commit (`feat`, `fix`, ...) a dev prerelease (`vX.Y.Z-dev.N`). Each release pushes the Helm chart and [`io2060/avatar-issuer-chatbot`](https://hub.docker.com/r/io2060/avatar-issuer-chatbot): stable releases as `vX.Y.Z`, `vX.Y` and `vX`, dev prereleases as `vX.Y.Z-dev.N`, `vX.Y.Z-dev`, `vX.Y-dev`, `vX-dev` and `dev`. Deployments pin the full version tag.
 
 Versions continue those of `2060-io/hologram-verifiable-services`, where this code lived until `v1.0.0`.
