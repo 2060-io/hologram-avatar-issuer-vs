@@ -1,0 +1,92 @@
+import express from "express";
+import { ApiClient } from "@verana-labs/vs-agent-client";
+import { loadConfig } from "./config";
+import { VsAgentClient } from "./vs-agent-client";
+import { ensureCredentialDefinition } from "./credential-definition";
+import { SessionStore } from "./session-store";
+import { Db } from "./db";
+import { Chatbot } from "./chatbot";
+import { createWebhookRouter } from "./webhooks";
+import { MediaStore } from "./media-store";
+
+async function main(): Promise<void> {
+  const config = loadConfig();
+  console.log(`Issuer Chatbot starting...`);
+  console.log(`  VS-Agent URL : ${config.vsAgentAdminUrl}`);
+  console.log(`  VTJSC        : ${config.jsonSchemaCredentialId}`);
+  console.log(`  Chatbot port : ${config.chatbotPort}`);
+  console.log(`  Service name : ${config.serviceName}`);
+  console.log(`  AnonCreds    : ${config.enableAnoncreds}`);
+  console.log(`  Database     : ${config.databaseUrl}`);
+
+  if (!config.jsonSchemaCredentialId) {
+    throw new Error(
+      "JSON_SCHEMA_CREDENTIAL_ID is required: URL of the Avatar Credential VTJSC"
+    );
+  }
+
+  // Wait for VS-Agent to be ready (Admin API v2)
+  const api = new ApiClient(config.vsAgentAdminUrl);
+  const client = new VsAgentClient(api);
+  const agent = await client.waitForReady();
+  console.log(`VS-Agent ready — DID: ${agent.did ?? "(none)"}, version ${agent.version}`);
+
+  // Find or create the AnonCreds credential definition for the Avatar Credential VTJSC
+  const schema = await ensureCredentialDefinition(api, config.jsonSchemaCredentialId);
+
+  // Initialize database and session store
+  const db = await Db.create(config.databaseUrl);
+  const store = new SessionStore();
+
+  // Initialize media store (MinIO)
+  const mediaStore = new MediaStore({
+    endpoint: config.minioEndpoint,
+    port: config.minioPort,
+    accessKey: config.minioAccessKey,
+    secretKey: config.minioSecretKey,
+    bucket: config.minioBucket,
+    useSSL: config.minioUseSSL,
+    publicUrl: config.minioPublicUrl,
+  });
+  try {
+    await mediaStore.init();
+    console.log(`MinIO ready — bucket: ${config.minioBucket}`);
+  } catch (err) {
+    console.warn(`MinIO init failed (avatar images will not work):`, err);
+  }
+
+  // Create chatbot
+  const chatbot = new Chatbot(client, store, db, schema, config, mediaStore);
+
+  // Start Express server with webhook routes
+  const app = express();
+  // Credential exchange events carry the offered claims, the avatar data URI included
+  app.use(express.json({ limit: "5mb" }));
+  app.use("/", createWebhookRouter(chatbot, client));
+
+  app.listen(config.chatbotPort, () => {
+    console.log(`Issuer Chatbot listening on port ${config.chatbotPort}`);
+    console.log(`Endpoints:`);
+    console.log(
+      `  POST http://localhost:${config.chatbotPort}/events  (VS Agent EVENTS_WEBHOOK_URL)`
+    );
+    console.log(
+      `  GET  http://localhost:${config.chatbotPort}/health`
+    );
+  });
+
+  // Graceful shutdown
+  const shutdown = () => {
+    console.log("Shutting down...");
+    store.close();
+    db.close();
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+}
+
+main().catch((error) => {
+  console.error("Fatal error:", error);
+  process.exit(1);
+});
