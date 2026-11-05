@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/2060-io/hologram-avatar-issuer-vs/compare/v1.1.0...v1.2.0) (2026-11-05)
+
+
+### Features
+
+* **chart:** own object store for the avatar previews (SeaweedFS) ([77bba32](https://github.com/2060-io/hologram-avatar-issuer-vs/commit/77bba324d5e78961a4bf8abdfcb399babf5cbf51))
+* **chart:** own object store for the avatar previews (SeaweedFS) ([9cc53d4](https://github.com/2060-io/hologram-avatar-issuer-vs/commit/9cc53d45ede84bad008dd35acd2cf6e644556685))
+
 ## [1.1.0](https://github.com/2060-io/hologram-avatar-issuer-vs/compare/v1.0.1...v1.1.0) (2026-11-05)
 
 
