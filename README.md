@@ -1,8 +1,8 @@
-# Avatar Issuer Chatbot
+# Hologram Avatar Issuer VS
 
 A conversational chatbot (via Hologram Messaging) that issues **Avatar credentials**: users pick a unique avatar name (`@name`), optionally attach an avatar image, and receive a verifiable credential. Avatars can be protected with a password or an authenticator app (TOTP) and restored from a new connection.
 
-See [`../spec.md`](../spec.md) for the full behavioral spec.
+See [`spec.md`](spec.md) for the full behavioral spec. The demo is deployed from [hologram-demos-deploy](https://github.com/2060-io/hologram-demos-deploy); this repository builds and publishes its image only.
 
 ## How it works
 
@@ -29,16 +29,16 @@ server, for example `http://avatar-issuer-chatbot:4000/events`. VS Agent v2 no l
 ## Prerequisites
 
 - Avatar VS Agent v2 running, with an ISSUER participant for the Avatar Credential schema and `EVENTS_WEBHOOK_URL` pointing at this server
-- MinIO for image previews (started by `avatar/docker/docker-compose.yml`)
+- An S3-compatible object store for image previews (MinIO API, see the `MINIO_*` variables)
 - Node.js 22+
 
 ## Local Usage
 
 ```bash
-# Source configuration
-source avatar/config.env
+# Point the chatbot at your VS Agent and object store (see Environment Variables)
+export VS_AGENT_ADMIN_URL=http://localhost:3000
+export JSON_SCHEMA_CREDENTIAL_ID=https://ecosystem.example/vt/schemas-avatar-jsc.json
 
-cd avatar/issuer-chatbot
 npm install
 
 # Run in development mode
@@ -80,3 +80,9 @@ docker run -p 4000:4000 \
   -e JSON_SCHEMA_CREDENTIAL_ID=https://ecosystem.example/vt/schemas-avatar-jsc.json \
   avatar-issuer-chatbot
 ```
+
+## Releases and images
+
+`cd.yml` versions the repository with Release Please on every push to `main`: merging the release pull request publishes a stable release (`vX.Y.Z`), and every other releasable commit (`feat`, `fix`, ...) a dev prerelease (`vX.Y.Z-dev.N`). Each release pushes [`io2060/avatar-issuer-chatbot`](https://hub.docker.com/r/io2060/avatar-issuer-chatbot): stable releases as `vX.Y.Z`, `vX.Y` and `vX`, dev prereleases as `vX.Y.Z-dev.N`, `vX.Y.Z-dev`, `vX.Y-dev`, `vX-dev` and `dev`. Deployments pin the full version tag.
+
+Versions continue those of `2060-io/hologram-verifiable-services`, where this code lived until `v1.0.0`.
